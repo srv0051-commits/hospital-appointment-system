@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All Appointments — MediBook</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="nav-brand">
+        <span class="nav-icon">🏥</span>
+        <span>MediBook</span>
+    </div>
+    <a href="/" class="nav-link">← Book Appointment</a>
+</nav>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+    <div class="alert alert-{{ category }}">
+        {{ message }}
+        <button class="alert-close" onclick="this.parentElement.remove()">✕</button>
+    </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<div class="page-header">
+    <h1 class="page-title">All Appointments</h1>
+    <p class="page-sub">{{ data|length }} record(s) found</p>
+</div>
+
+<div class="filter-bar">
+    <form method="GET" class="filter-form">
+        <input type="text" name="search" placeholder="Search by name or phone…" value="{{ search }}">
+        <select name="doctor">
+            <option value="">All Doctors</option>
+            {% for doc in doctor_info %}
+            <option value="{{ doc }}" {% if doctor_filter == doc %}selected{% endif %}>{{ doc }}</option>
+            {% endfor %}
+        </select>
+        <select name="status">
+            <option value="">All Status</option>
+            <option value="Confirmed" {% if status_filter == 'Confirmed' %}selected{% endif %}>Confirmed</option>
+            <option value="Cancelled" {% if status_filter == 'Cancelled' %}selected{% endif %}>Cancelled</option>
+        </select>
+        <button type="submit" class="btn-filter">Filter</button>
+        <a href="/appointments" class="btn-clear">Clear</a>
+    </form>
+</div>
+
+<div class="table-wrapper">
+    {% if data %}
+    <table class="appointments-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Patient</th>
+                <th>Contact</th>
+                <th>Doctor</th>
+                <th>Date & Time</th>
+                <th>Patients</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in data %}
+            <tr class="{% if row['status'] == 'Cancelled' %}row-cancelled{% endif %}">
+                <td class="td-id">{{ row['id'] }}</td>
+                <td>
+                    <div class="patient-info">
+                        <span class="patient-name">{{ row['name'] }}</span>
+                        {% if row['age'] %}<span class="patient-meta">Age: {{ row['age'] }}</span>{% endif %}
+                    </div>
+                </td>
+                <td>
+                    <div class="contact-info">
+                        {% if row['phone'] %}<span>📞 {{ row['phone'] }}</span>{% endif %}
+                        {% if row['email'] %}<span>✉️ {{ row['email'] }}</span>{% endif %}
+                        {% if not row['phone'] and not row['email'] %}<span class="muted">—</span>{% endif %}
+                    </div>
+                </td>
+                <td>
+                    <div class="doctor-badge">
+                        <span>{{ doctor_info[row['doctor']]['icon'] if row['doctor'] in doctor_info else '🩺' }}</span>
+                        {{ row['doctor'] }}
+                    </div>
+                </td>
+                <td>
+                    <div class="datetime-info">
+                        <span class="date-text">{{ row['date'] }}</span>
+                        <span class="time-text">{{ row['time'] }}</span>
+                    </div>
+                </td>
+                <td class="td-center">{{ row['patients'] }}</td>
+                <td class="td-amount">₹{{ "{:,}".format(row['total']) }}</td>
+                <td>
+                    <span class="badge badge-{{ row['status']|lower }}">{{ row['status'] }}</span>
+                </td>
+                <td>
+                    {% if row['status'] != 'Cancelled' %}
+                    <form method="POST" action="/cancel/{{ row['id'] }}" onsubmit="return confirm('Cancel appointment #{{ row['id'] }}?')">
+                        <button type="submit" class="btn-cancel">Cancel</button>
+                    </form>
+                    {% else %}
+                    <span class="muted">—</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <span class="empty-icon">📋</span>
+        <p>No appointments found.</p>
+        <a href="/" class="btn-book">Book the first one →</a>
+    </div>
+    {% endif %}
+</div>
+
+<footer class="footer">
+    <p>© 2024 MediBook Hospital System · All Rights Reserved</p>
+</footer>
+
+</body>
+</html>

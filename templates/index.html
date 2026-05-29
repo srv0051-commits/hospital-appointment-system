@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediBook — Hospital Appointment System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="nav-brand">
+        <span class="nav-icon">🏥</span>
+        <span>MediBook</span>
+    </div>
+    <a href="/appointments" class="nav-link">View Appointments →</a>
+</nav>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+    <div class="alert alert-{{ category }}">
+        {{ message }}
+        <button class="alert-close" onclick="this.parentElement.remove()">✕</button>
+    </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<div class="hero">
+    <div class="hero-content">
+        <p class="hero-tag">Trusted Healthcare</p>
+        <h1 class="hero-title">Book Your<br><em>Appointment</em></h1>
+        <p class="hero-sub">Fast, simple, and secure hospital bookings in seconds.</p>
+    </div>
+    <div class="stats-row">
+        <div class="stat-card">
+            <span class="stat-num">{{ total_appointments }}</span>
+            <span class="stat-label">Total Bookings</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-num">{{ today_appointments }}</span>
+            <span class="stat-label">Today's Appointments</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-num">₹{{ "{:,}".format(revenue) }}</span>
+            <span class="stat-label">Total Revenue</span>
+        </div>
+    </div>
+</div>
+
+<div class="main-layout">
+
+    <!-- Doctor Cards -->
+    <section class="section">
+        <h2 class="section-title">Choose a Specialist</h2>
+        <div class="doctor-grid">
+            {% for doc, info in doctor_info.items() %}
+            <div class="doctor-card" data-doctor="{{ doc }}" onclick="selectDoctor('{{ doc }}')">
+                <span class="doc-icon">{{ info.icon }}</span>
+                <span class="doc-name">{{ doc }}</span>
+                <span class="doc-desc">{{ info.desc }}</span>
+                <span class="doc-fee">₹{{ fees[doc] }}/patient</span>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- Booking Form -->
+    <section class="section">
+        <h2 class="section-title">Appointment Details</h2>
+        <form class="booking-form" action="/book" method="POST" id="bookingForm">
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Patient Name <span class="required">*</span></label>
+                    <input type="text" name="name" placeholder="Full name" required>
+                </div>
+                <div class="form-group">
+                    <label>Age</label>
+                    <input type="number" name="age" placeholder="Age" min="1" max="120">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Phone Number</label>
+                    <input type="tel" name="phone" placeholder="+91 XXXXX XXXXX">
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" name="email" placeholder="email@example.com">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Doctor / Specialist <span class="required">*</span></label>
+                <select name="doctor" id="doctorSelect" required onchange="updateFee()">
+                    <option value="" disabled selected>Select a specialist</option>
+                    {% for doc, info in doctor_info.items() %}
+                    <option value="{{ doc }}">{{ info.icon }} {{ doc }} — ₹{{ fees[doc] }}/patient</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Date <span class="required">*</span></label>
+                    <input type="date" name="date" id="dateInput" required onchange="checkSlot()">
+                </div>
+                <div class="form-group">
+                    <label>Preferred Time <span class="required">*</span></label>
+                    <input type="time" name="time" id="timeInput" required onchange="checkSlot()">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Number of Patients <span class="required">*</span></label>
+                <input type="number" name="patients" id="patientsInput" placeholder="1" min="1" max="10" value="1" required onchange="updateFee()">
+            </div>
+
+            <div class="form-group">
+                <label>Notes / Symptoms</label>
+                <textarea name="notes" placeholder="Any specific symptoms or notes for the doctor..." rows="3"></textarea>
+            </div>
+
+            <div class="fee-summary" id="feeSummary">
+                <div class="fee-row">
+                    <span>Consultation Fee</span>
+                    <span id="feeDisplay">—</span>
+                </div>
+                <div class="fee-row">
+                    <span>Patients</span>
+                    <span id="patientsDisplay">—</span>
+                </div>
+                <div class="fee-divider"></div>
+                <div class="fee-row fee-total">
+                    <span>Estimated Total</span>
+                    <span id="totalDisplay">—</span>
+                </div>
+            </div>
+
+            <div class="slot-status" id="slotStatus"></div>
+
+            <button type="submit" class="btn-book" id="submitBtn">
+                <span>Confirm Appointment</span>
+                <span class="btn-arrow">→</span>
+            </button>
+        </form>
+    </section>
+</div>
+
+<footer class="footer">
+    <p>© 2024 MediBook Hospital System · All Rights Reserved</p>
+</footer>
+
+<script>
+const FEES = {{ fees | tojson }};
+
+function selectDoctor(doc) {
+    document.querySelectorAll('.doctor-card').forEach(c => c.classList.remove('active'));
+    document.querySelector(`.doctor-card[data-doctor="${doc}"]`).classList.add('active');
+    document.getElementById('doctorSelect').value = doc;
+    updateFee();
+}
+
+function updateFee() {
+    const doc = document.getElementById('doctorSelect').value;
+    const patients = parseInt(document.getElementById('patientsInput').value) || 0;
+    if (doc && patients > 0) {
+        const fee = FEES[doc];
+        const total = fee * patients;
+        document.getElementById('feeDisplay').textContent = '₹' + fee.toLocaleString('en-IN');
+        document.getElementById('patientsDisplay').textContent = patients;
+        document.getElementById('totalDisplay').textContent = '₹' + total.toLocaleString('en-IN');
+        document.getElementById('feeSummary').classList.add('visible');
+    }
+}
+
+let slotCheckTimer;
+function checkSlot() {
+    clearTimeout(slotCheckTimer);
+    const doc = document.getElementById('doctorSelect').value;
+    const date = document.getElementById('dateInput').value;
+    const time = document.getElementById('timeInput').value;
+    if (!doc || !date || !time) return;
+
+    const statusEl = document.getElementById('slotStatus');
+    statusEl.className = 'slot-status checking';
+    statusEl.textContent = 'Checking availability...';
+
+    slotCheckTimer = setTimeout(() => {
+        fetch(`/api/check-slot?doctor=${doc}&date=${date}&time=${time}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.available) {
+                    statusEl.className = 'slot-status available';
+                    statusEl.textContent = '✓ Slot is available!';
+                    document.getElementById('submitBtn').disabled = false;
+                } else {
+                    statusEl.className = 'slot-status unavailable';
+                    statusEl.textContent = '✗ Slot already booked — please choose another time.';
+                    document.getElementById('submitBtn').disabled = true;
+                }
+            });
+    }, 400);
+}
+
+// Set min date to today
+document.getElementById('dateInput').min = new Date().toISOString().split('T')[0];
+</script>
+</body>
+</html>
